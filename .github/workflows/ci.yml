@@ -38,10 +38,14 @@ jobs:
             otp: "27"
           # 1.15 is only compatible with OTP 24 - 26
           - elixir: "1.15"
+            otp: "22"
+          - elixir: "1.15"
             otp: "23"
           - elixir: "1.15"
             otp: "27"
           # 1.16 is only compatible with OTP 24 - 26
+          - elixir: "1.16"
+            otp: "22"
           - elixir: "1.16"
             otp: "23"
           - elixir: "1.16"
