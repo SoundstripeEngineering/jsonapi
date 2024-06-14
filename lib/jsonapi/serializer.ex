@@ -94,16 +94,12 @@ defmodule JSONAPI.Serializer do
         acc,
         options
       ) do
-    # Build the relationship url
-    rel_key = transform_fields(relationship_name)
-    # rel_url = parent_view.url_for_rel(parent_data, rel_key, conn)
-    rel_url = nil
     # Build the relationship
     acc =
       put_in(
         acc,
-        [:relationships, rel_key],
-        encode_relation({rel_view, rel_data, rel_url, conn})
+        [:relationships, transform_fields(relationship_name)],
+        encode_relation({rel_view, rel_data})
       )
 
     valid_include_view = include_view(valid_includes, relationship_name)
@@ -197,7 +193,7 @@ defmodule JSONAPI.Serializer do
   end
 
   @spec encode_relation(tuple()) :: map()
-  def encode_relation({rel_view, rel_data, _rel_url, _conn}) do
+  def encode_relation({rel_view, rel_data}) do
     %{
       data: encode_rel_data(rel_view, rel_data)
     }
