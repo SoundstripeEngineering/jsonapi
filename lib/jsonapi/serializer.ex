@@ -43,7 +43,7 @@ defmodule JSONAPI.Serializer do
         encoded_data
       end
 
-    merge_links(encoded_data, data, view, conn, query_page, remove_links?(), options)
+    custom_merge_links(encoded_data, view.links(data, conn, query_page))
   end
 
   def encode_data(_view, nil, _conn, _query_includes, _options), do: {[], nil}
@@ -65,12 +65,10 @@ defmodule JSONAPI.Serializer do
       relationships: %{}
     }
 
-    doc = merge_links(encoded_data, data, view, conn, nil, remove_links?(), options)
-
     doc =
       case view.meta(data, conn) do
-        nil -> doc
-        meta -> Map.put(doc, :meta, meta)
+        nil -> encoded_data
+        meta -> Map.put(encoded_data, :meta, meta)
       end
 
     encode_relationships(conn, doc, {view, data, query_includes, valid_includes}, options)
@@ -89,23 +87,19 @@ defmodule JSONAPI.Serializer do
           tuple()
   def build_relationships(
         conn,
-        {parent_view, parent_data, query_includes, valid_includes},
+        {_parent_view, _parent_data, query_includes, valid_includes},
         relationship_name,
         rel_data,
         rel_view,
         acc,
         options
       ) do
-    # Build the relationship url
-    rel_key = transform_fields(relationship_name)
-    rel_url = parent_view.url_for_rel(parent_data, rel_key, conn)
-
     # Build the relationship
     acc =
       put_in(
         acc,
-        [:relationships, rel_key],
-        encode_relation({rel_view, rel_data, rel_url, conn})
+        [:relationships, transform_fields(relationship_name)],
+        encode_relation({rel_view, rel_data})
       )
 
     valid_include_view = include_view(valid_includes, relationship_name)
@@ -199,47 +193,17 @@ defmodule JSONAPI.Serializer do
   end
 
   @spec encode_relation(tuple()) :: map()
-  def encode_relation({rel_view, rel_data, _rel_url, _conn} = info) do
-    data = %{
+  def encode_relation({rel_view, rel_data}) do
+    %{
       data: encode_rel_data(rel_view, rel_data)
     }
-
-    merge_related_links(data, info, remove_links?())
   end
 
-  defp merge_base_links(%{links: links} = doc, data, view, conn) do
-    view_links = Map.merge(view.links(data, conn), links)
-    Map.merge(doc, %{links: view_links})
+  def custom_merge_links(encoded_data, nil), do: encoded_data
+
+  def custom_merge_links(encoded_data, links) do
+    Map.merge(encoded_data, %{links: links})
   end
-
-  defp merge_links(doc, data, view, conn, page, false, options) when is_list(data) do
-    links =
-      Map.merge(view.pagination_links(data, conn, page, options), %{
-        self: view.url_for_pagination(data, conn, page)
-      })
-
-    doc
-    |> Map.merge(%{links: links})
-    |> merge_base_links(data, view, conn)
-  end
-
-  defp merge_links(doc, data, view, conn, _page, false, _options) do
-    doc
-    |> Map.merge(%{links: %{self: view.url_for(data, conn)}})
-    |> merge_base_links(data, view, conn)
-  end
-
-  defp merge_links(doc, _data, _view, _conn, _page, _remove_links, _options), do: doc
-
-  defp merge_related_links(
-         encoded_data,
-         {rel_view, rel_data, rel_url, conn},
-         false = _remove_links
-       ) do
-    Map.merge(encoded_data, %{links: %{self: rel_url, related: rel_view.url_for(rel_data, conn)}})
-  end
-
-  defp merge_related_links(encoded_rel_data, _info, _remove_links), do: encoded_rel_data
 
   @spec encode_rel_data(module(), map() | list()) :: map() | nil
   def encode_rel_data(_view, nil), do: nil
@@ -295,8 +259,6 @@ defmodule JSONAPI.Serializer do
     end)
     |> List.flatten()
   end
-
-  defp remove_links?, do: Application.get_env(:jsonapi, :remove_links, false)
 
   defp transform_fields(fields) do
     case Utils.String.field_transformation() do
